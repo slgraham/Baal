@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+/// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.0;
 
 /// @dev interface for Baal extensions
@@ -25,8 +25,48 @@ contract ReentrancyGuard {
     }
 }
 
+contract BaalToken {
+    string constant public name = "BAAL";
+    string constant public symbol = "BAAL";
+    uint8 constant public decimals = 18;
+    uint256 public totalSupply;
+    
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+    
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
+    
+    constructor(address baal, uint256 initialBaal) {
+        balanceOf[baal] = initialBaal;
+        emit Transfer(address(0), baal, initialBaal);
+    }
+    
+    function approve(address to, uint256 amount) external returns (bool) {
+        allowance[msg.sender][to] = amount;
+        emit Approval(msg.sender, to, amount);
+        return true;
+    }
+    
+    function transfer(address to, uint256 amount) external returns (bool) {
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        emit Transfer(msg.sender, to, amount);
+        return true;
+    }
+    
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        balanceOf[from] -= amount;
+        balanceOf[to] += amount;
+        allowance[from][msg.sender] -= amount;
+        emit Transfer(from, to, amount);
+        return true;
+    }
+}
+
 /// @dev Baal for Guilds
 contract Baal is ReentrancyGuard {
+    address public baalToken; // baal utility token contract reference
     address[] public memberList; // array of member accounts summoned or added by proposal
     uint256 public proposalCount; // counter for proposals submitted
     uint256 public totalSupply; // counter for member votes minted - erc20 compatible
@@ -68,7 +108,7 @@ contract Baal is ReentrancyGuard {
     /// @param _votingPeriod Voting period in seconds for members to cast votes on proposals
     /// @param _name Name for erc20 vote accounting
     /// @param _symbol Symbol for erc20 vote accounting
-    constructor(address[] memory _extensions, address[] memory summoners, uint256[] memory votes, uint256 _votingPeriod, string memory _name, string memory _symbol) {
+    constructor(address[] memory _extensions, address[] memory summoners, uint256 initialBaal, uint256[] memory votes, uint256 _votingPeriod, string memory _name, string memory _symbol) {
         for (uint256 i = 0; i < summoners.length; i++) {
              memberList.push(summoners[i]); // update array of member accounts
              totalSupply += votes[i]; // total votes incremented by summoning with erc20 accounting
@@ -77,6 +117,9 @@ contract Baal is ReentrancyGuard {
              members[summoners[i]].exists = true; // confirm summoning member `exists`
              emit Transfer(address(this), summoners[i], votes[i]); // event reflects mint of erc20 votes to summoning members
         }
+        
+        BaalToken baal = new BaalToken(address(this), initialBaal); // summon baal utility token 
+        baalToken = address(baal); // record minion reference
         
         votingPeriod = _votingPeriod; 
         name = _name;
