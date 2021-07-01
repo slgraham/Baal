@@ -611,17 +611,30 @@ contract Baal {
     function transfer(address to, uint256 amount) external returns (bool) {
         require(!lootPaused, "!transferable");
         balanceOf[msg.sender] -= amount;
-        _moveDelegates(msg.sender, to, uint96(amount));
+    
+        // handle voice associated with the transferred loot
+        uint256 voiceToMove = lootToVoice(amount);
+        if (!voicePaused) {
+            _moveDelegates(msg.sender, to, uint96(voiceToMove));
+            emit TransferVoice(msg.sender, to, voiceToMove);
+        } else {
+            // burn voice
+            members[msg.sender].voice -= uint96(voiceToMove);
+            totalVoice -= voiceToMove;
+            emit TransferVoice(msg.sender, address(0), voiceToMove);
+        }
+        
         unchecked {
             balanceOf[to] += amount;
         }
         emit Transfer(msg.sender, to, amount);
+        
         return true;
     }
 
-    /// @notice Transfer `amount` loot from `msg.sender` to `to`.
+    /// @notice Transfer `amount` voice from `msg.sender` to `to`.
     /// @param to The address of destination account.
-    /// @param amount The number of loot units to transfer.
+    /// @param amount The number of voice units to transfer.
     function transferVoice(address to, uint96 amount) external {
         require(!voicePaused, "!transferable");
         members[msg.sender].voice -= amount;
@@ -646,7 +659,19 @@ contract Baal {
             allowance[from][msg.sender] -= amount;
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
-        _moveDelegates(from, to, uint96(amount));
+
+        // handle voice associated with the transferred loot
+        uint256 voiceToMove = lootToVoice(amount);
+        if (!voicePaused) {
+            _moveDelegates(msg.sender, to, uint96(voiceToMove));
+            emit TransferVoice(msg.sender, to, voiceToMove);
+        } else {
+            // burn voice
+            members[msg.sender].voice -= uint96(voiceToMove);
+            totalVoice -= voiceToMove;
+            emit TransferVoice(msg.sender, address(0), voiceToMove);
+        }
+        
         emit Transfer(from, to, amount);
         return true;
     }
