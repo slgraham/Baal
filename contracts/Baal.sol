@@ -159,9 +159,9 @@ contract Baal {
     /// @notice Summon Baal & create initial array of `members` accounts with voice & loot weights.
     /// @param _shamans External contracts approved for {memberAction}.
     /// @param _guildTokens Tokens approved for internal accounting-{ragequit} of loot.
-    /// @param summoners Accounts to add as `members`.
-    /// @param loot Economic weight among `members`.
-    /// @param voice Voting weight among `members`.
+    /// @param _summoners Accounts to add as `members`.
+    /// @param _loot Economic weight among `members`.
+    /// @param _voice Voting weight among `members`.
     /// @param _minVotingPeriod Minimum voting period in seconds for `members` to cast votes on proposals.
     /// @param _maxVotingPeriod Maximum voting period in seconds for `members` to cast votes on proposals.
     /// @param _name Name for erc20 loot accounting.
@@ -169,9 +169,9 @@ contract Baal {
     constructor(
         address[] memory _shamans,
         address[] memory _guildTokens,
-        address[] memory summoners,
-        uint96[] memory loot,
-        uint96[] memory voice,
+        address[] memory _summoners,
+        uint96[] memory _loot,
+        uint96[] memory _voice,
         uint32 _minVotingPeriod,
         uint32 _maxVotingPeriod,
         uint256 _lootToVoiceMantissa,
@@ -181,36 +181,30 @@ contract Baal {
         bool _lootPaused,
         bool _voicePaused
     ) {
-        uint96 initialTotalVoiceAndLoot;
         unchecked {
-            for (uint256 i; i < summoners.length; i++) {
-                guildTokens.push(_guildTokens[i]); /*update array of `guildTokens` approved for {ragequit}*/
-                memberList.push(summoners[i]); /*push summoners to `members` array*/
-                balanceOf[summoners[i]] = loot[i]; /*add loot to summoning `members` account with erc20 accounting*/
-                totalVoice += voice[i]; /*add to total Baal voice*/
-                totalSupply += loot[i]; /*add to total Baal loot with erc20 accounting*/
-                shamans[_shamans[i]] = true; /*update mapping of approved `shamans` in Baal*/
-                members[summoners[i]].voice = voice[i]; /*add loot to summoning `members` account*/
-                initialTotalVoiceAndLoot += (loot[i] + voice[i]); /*set reasonable limit for Baal loot & voice via uint96 max.*/
-                _delegate(summoners[i], summoners[i]); /*delegate votes to summoning members by default*/
-                emit Transfer(address(0), summoners[i], loot[i]);
+            for (uint256 i; i < _summoners.length; i++) {
+                memberList.push(_summoners[i]); /*push summoners to `members` array*/
+                balanceOf[_summoners[i]] = _loot[i]; /*add loot to summoning `members` account with erc20 accounting*/
+                totalVoice += _voice[i]; /*add to total Baal voice*/
+                totalSupply += _loot[i]; /*add to total Baal loot with erc20 accounting*/
+                members[_summoners[i]].voice = _voice[i]; /*add loot to summoning `members` account*/
+                _delegate(_summoners[i], _summoners[i]); /*delegate votes to summoning members by default*/
+                emit Transfer(address(0), _summoners[i], _loot[i]);
             }
         } /*event reflects mint of erc20 loot to summoning `members`*/
-        minVotingPeriod = _minVotingPeriod; /*set minimum voting period-adjustable via 'governance'[1] proposal*/
-        maxVotingPeriod = _maxVotingPeriod; /*set maximum voting period-adjustable via 'governance'[1] proposal*/
-        lootToVoiceMantissa = _lootToVoiceMantissa;
-        lootToVoiceQuadratic = _lootToVoiceQuadratic;
-        name = _name; /*set Baal loot 'name' with erc20 accounting*/
-        symbol = _symbol; /*set Baal loot 'symbol' with erc20 accounting*/
-        lootPaused = _lootPaused;
-        voicePaused = _voicePaused;
+
+        _setShamans(_shamans);
+        _setGuildTokens(_guildTokens);
+
+        _setParams(_minVotingPeriod, _maxVotingPeriod,_lootToVoiceMantissa,_lootToVoiceQuadratic,_name, _symbol,_lootPaused,_voicePaused);
+
         status = 1; /*set reentrancy guard status*/
         emit SummonComplete(
             _shamans,
             _guildTokens,
-            summoners,
-            loot,
-            voice,
+            _summoners,
+            _loot,
+            _voice,
             _minVotingPeriod,
             _maxVotingPeriod,
             _name,
@@ -219,6 +213,36 @@ contract Baal {
             _voicePaused
         );
     } /*emit event reflecting Baal summoning completed*/
+
+    function _setShamans(address[] memory _shamans) internal {
+        for (uint256 i; i < _shamans.length; i++) {
+                shamans[_shamans[i]] = true; /*update mapping of approved `shamans` in Baal*/
+            }
+    }
+
+    function _setGuildTokens(address[] memory _guildTokens) internal {
+        for (uint256 i; i < _guildTokens.length; i++) {
+                guildTokens.push(_guildTokens[i]); /*update array of `guildTokens` approved for {ragequit}*/ /*update mapping of approved `shamans` in Baal*/
+            }
+    }
+
+    function _setParams(uint32 _minVotingPeriod,
+        uint32 _maxVotingPeriod,
+        uint256 _lootToVoiceMantissa,
+        bool _lootToVoiceQuadratic,
+        string memory _name,
+        string memory _symbol,
+        bool _lootPaused,
+        bool _voicePaused) internal {
+            minVotingPeriod = _minVotingPeriod; /*set minimum voting period-adjustable via 'governance'[1] proposal*/
+            maxVotingPeriod = _maxVotingPeriod; /*set maximum voting period-adjustable via 'governance'[1] proposal*/
+            lootToVoiceMantissa = _lootToVoiceMantissa;
+            lootToVoiceQuadratic = _lootToVoiceQuadratic;
+            name = _name; /*set Baal loot 'name' with erc20 accounting*/
+            symbol = _symbol; /*set Baal loot 'symbol' with erc20 accounting*/
+            lootPaused = _lootPaused;
+            voicePaused = _voicePaused;
+    }
 
     /// @notice Execute membership action to mint or burn voice or loot against whitelisted `shaman` in consideration of `msg.sender` & given `amount`.
     /// @param shaman Whitelisted contract to trigger action.
@@ -671,7 +695,7 @@ contract Baal {
             totalVoice -= voiceToMove;
             emit TransferVoice(msg.sender, address(0), voiceToMove);
         }
-        
+
         emit Transfer(from, to, amount);
         return true;
     }
